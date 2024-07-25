@@ -21,25 +21,25 @@ def process(players, track):
         if player.action == actions.LEFT:
             if player.x > 0:
                 player.x -= 1
-                log.debug(
-                    "player %s moved left to %d,%d",
-                    player.name,
-                    player.x,
-                    player.y,
-                )
+                # log.debug(
+                #     "player %s moved left to %d,%d",
+                #     player.name,
+                #     player.x,
+                #     player.y,
+                # )
         elif player.action == actions.RIGHT:
             if player.x < config.matrix_width - 1:
                 player.x += 1
-                log.debug(
-                    "player %s moved right to %d,%d",
-                    player.name,
-                    player.x,
-                    player.y,
-                )
+                # log.debug(
+                #     "player %s moved right to %d,%d",
+                #     player.name,
+                #     player.x,
+                #     player.y,
+                # )
 
-    # Proccess the players by order, first the ones in lane and then
-    # the ones out of lane, this ensure the car in lane will have
-    # priority when picking pinguins and in case of collisions.
+    # Processes the players by order, first the ones in lane and then
+    # the ones out of lane, this ensures the car in lane will have
+    # priority when picking penguins and in case of collisions.
 
     sorted_players = sorted(players.values(), key=lambda p: 0 if p.in_lane() else 1)
     positions = set()
@@ -48,79 +48,107 @@ def process(players, track):
 
     for player in sorted_players:
         obstacle = track.get(player.x, player.y)
+        ghost_obstacle = track.get(player.ghost_x, player.ghost_y)
+
+        if ghost_obstacle == obstacles.NONE:
+            # Move forward, leaving the obstacle on the track.
+            player.score_ghost += config.score_move_forward
+
+        elif ghost_obstacle in (obstacles.TRASH, obstacles.BIKE, obstacles.BARRIER):
+            # Move back consuming the obstacle.
+            track.clear(player.ghost_x, player.ghost_y)
+            player.ghost_y += 1
+            player.score_ghost += config.score_move_backward
+
+        elif ghost_obstacle == obstacles.CRACK:
+            # Move forward leaving the obstacle on the track
+            points = config.score_move_forward + config.score_jump
+            player.score_ghost += points
+
+        elif ghost_obstacle == obstacles.WATER:
+            # Move forward leaving the obstacle on the track
+            points = config.score_move_forward + config.score_brake
+            player.score_ghost += points
+
+        elif obstacle == obstacles.PENGUIN:
+            # Move forward and collect an aquatic bird
+            track.clear(player.ghost_x, player.ghost_y)
+            points = config.score_move_forward + config.score_pickup
+            player.score_ghost += points
 
         if obstacle == obstacles.NONE:
             # Move forward, leaving the obstacle on the track.
             player.score += config.score_move_forward
-            log.debug(
-                "player %s hit no obstacle: got %d points",
-                player.name,
-                config.score_move_forward,
-            )
+            # log.debug(
+            #     "player %s hit no obstacle: got %d points",
+            #     player.name,
+            #     config.score_move_forward,
+            # )
 
         elif obstacle in (obstacles.TRASH, obstacles.BIKE, obstacles.BARRIER):
             # Move back consuming the obstacle.
             track.clear(player.x, player.y)
             player.y += 1
             player.score += config.score_move_backward
-            log.debug(
-                "player %s hit %s: lost %d points, moved back to %d,%d",
-                player.name,
-                obstacle,
-                -config.score_move_backward,
-                player.x,
-                player.y,
-            )
+            # log.debug(
+            #     "player %s hit %s: lost %d points, moved back to %d,%d",
+            #     player.name,
+            #     obstacle,
+            #     -config.score_move_backward,
+            #     player.x,
+            #     player.y,
+            # )
 
         elif obstacle == obstacles.CRACK:
             if player.action == actions.JUMP:
                 # Move forward leaving the obstacle on the track
                 points = config.score_move_forward + config.score_jump
                 player.score += points
-                log.debug(
-                    "player %s avoided %s: got %d points",
-                    player.name,
-                    obstacle,
-                    points,
-                )
+
+                # log.debug(
+                #     "player %s avoided %s: got %d points",
+                #     player.name,
+                #     obstacle,
+                #     points,
+                # )
             else:
                 # Move back consuming the obstacle.
                 track.clear(player.x, player.y)
                 player.y += 1
                 player.score += config.score_move_backward
-                log.debug(
-                    "player %s hit %s: lost %d points, moved back to %d,%d",
-                    player.name,
-                    obstacle,
-                    -config.score_move_backward,
-                    player.x,
-                    player.y,
-                )
+                # log.debug(
+                #     "player %s hit %s: lost %d points, moved back to %d,%d",
+                #     player.name,
+                #     obstacle,
+                #     -config.score_move_backward,
+                #     player.x,
+                #     player.y,
+                # )
 
         elif obstacle == obstacles.WATER:
             if player.action == actions.BRAKE:
                 # Move forward leaving the obstacle on the track
                 points = config.score_move_forward + config.score_brake
                 player.score += points
-                log.debug(
-                    "player %s avoided %s: got %d points",
-                    player.name,
-                    obstacle,
-                    points,
-                )
+                # log.debug(
+                #     "player %s avoided %s: got %d points",
+                #     player.name,
+                #     obstacle,
+                #     points,
+                # )
             else:
                 # Move back consuming the obstacle.
                 track.clear(player.x, player.y)
                 player.y += 1
                 player.score += config.score_move_backward
-                log.debug(
-                    "player %s hit %s: lost %d points, moved back to %d,%d",
-                    player.name,
-                    obstacle,
-                    -config.score_move_backward,
-                    player.x,
-                    player.y,
-                )
+                # log.debug(
+                #     "player %s hit %s: lost %d points, moved back to %d,%d",
+                #     player.name,
+                #     obstacle,
+                #     -config.score_move_backward,
+                #     player.x,
+                #     player.y,
+                # )
 
         elif obstacle == obstacles.PENGUIN:
             if player.action == actions.PICKUP:
@@ -128,21 +156,22 @@ def process(players, track):
                 track.clear(player.x, player.y)
                 points = config.score_move_forward + config.score_pickup
                 player.score += points
-                log.debug(
-                    "player %s picked up %s: got %d points",
-                    player.name,
-                    obstacle,
-                    points,
-                )
+                # log.debug(
+                #     "player %s picked up %s: got %d points",
+                #     player.name,
+                #     obstacle,
+                #     points,
+                # )
             else:
                 # Move forward leaving the obstacle on the track
                 player.score += config.score_move_forward
-                log.debug("player %s missed %s", player.name, obstacle)
+                # log.debug("player %s missed %s", player.name, obstacle)
 
         # Here we can end the game when player gets out of
         # the track bounds. For now, just keep the player at the same
         # location.
         player.y = min(config.matrix_height - 1, max(2, player.y))
+        player.ghost_y = min(config.matrix_height - 1, max(2, player.ghost_y))
 
         # Fix up collisions
 
@@ -155,28 +184,28 @@ def process(players, track):
                 player.x -= 1
             elif player.x < config.matrix_width - 1:
                 player.x += 1
-            log.debug(
-                "player %s collision at %d,%d: lost %d points, " "moved to %d,%d",
-                player.name,
-                loc[0],
-                loc[1],
-                -config.score_move_backward,
-                player.x,
-                player.y,
-            )
+            # log.debug(
+            #     "player %s collision at %d,%d: lost %d points, " "moved to %d,%d",
+            #     player.name,
+            #     loc[0],
+            #     loc[1],
+            #     -config.score_move_backward,
+            #     player.x,
+            #     player.y,
+            # )
 
         # Finally forget action
         player.action = actions.NONE
 
         positions.add((player.x, player.y))
 
-        log.info(
-            "process_actions: name=%s lane=%d pos=%d,%d score=%d "
-            "response_time=%0.6f",
-            player.name,
-            player.lane,
-            player.x,
-            player.y,
-            player.score,
-            player.response_time,
-        )
+        # log.info(
+        #     "process_actions: name=%s lane=%d pos=%d,%d score=%d "
+        #     "response_time=%0.6f",
+        #     player.name,
+        #     player.lane,
+        #     player.x,
+        #     player.y,
+        #     player.score,
+        #     player.response_time,
+        # )
