@@ -10,6 +10,16 @@ from . import player
 from . import score
 
 log = logging.getLogger("game")
+points_for_obstacles = {"penguin": 10,
+                        "water": 4,
+                        "crack": 5,
+                        "": 0,
+                        "trash": -10,
+                        "bike": -10,
+                        "barrier": -10}
+
+actions_for_obstacles = {"penguin": "pickup", "water": "brake",
+                         "crack": "jump", "": "none"}
 
 
 class Game(object):
@@ -26,6 +36,7 @@ class Game(object):
         self.free_lanes = set(range(config.max_players))
         self._rate = config.game_rate
         self.started = False
+        self.actions = []
         self.timeleft = config.game_duration
 
     @property
@@ -42,6 +53,43 @@ class Game(object):
                 self.looper.start(1.0 / self._rate)
             else:
                 self.update_clients()
+
+    def best(self, name):
+        best_x = Game.evaluate(self.track, self.players[name].ghost_x, self.players[name].ghost_y, 6)
+        return best_x[1]
+
+    def best_for_player(self, name):
+        next_x = Game.evaluate(self.track, self.players[name].x, self.players[name].y, 6)[1]
+        next_obstacle = self.track.get(next_x, self.players[name].y - 1)
+        if next_x == self.players[name].x and next_obstacle in actions_for_obstacles.keys():
+            return actions_for_obstacles[next_obstacle]
+        if next_x < self.players[name].x:
+            return "left"
+        if next_x > self.players[name].x:
+            return "right"
+        return "none"
+
+    @staticmethod
+    def evaluate(world, x, y, times=6):
+        if times == 0:
+            return 0, x
+        best_grade, best_x = -1000, x
+        for next_x in Game.possible_moves(x):
+            next_obstacle, grade = world.get(next_x, y - 1), 0
+            if next_x == x:
+                grade += points_for_obstacles[next_obstacle]
+            elif next_obstacle in ("crack", "water"):
+                grade -= 10
+            next_grade, final_x = Game.evaluate(world, next_x, y - 1, times - 1)
+            grade += next_grade
+            if grade > best_grade: best_grade, best_x = grade, next_x
+        return best_grade, best_x
+
+    @staticmethod
+    def possible_moves(x):
+        if x in [2, 5]: return [x - 1, x]
+        if x in [0, 3]: return [x + 1, x]
+        return [x, x - 1, x + 1]
 
     def start(self):
         if self.started:
@@ -61,7 +109,9 @@ class Game(object):
         self.looper.stop()
         self.started = False
         self.update_clients()
-        self.print_stats()
+        for p in self.players.values():
+            print(f"\n\nsuccess rate for player {p.name}: {round(p.score / p.score_ghost, 3) * 100}%")
+        # self.print_stats()
 
     def add_player(self, name):
         if name in self.players:
@@ -90,14 +140,24 @@ class Game(object):
             reactor.callLater(0, self.update_clients)
 
     def drive_player(self, name, info):
-        log.info("drive_player: %r %r", name, info)
+        # log.info("drive_player: %r %r", name, info)
         if name not in self.players:
             raise error.NoSuchPlayer(name)
         if "action" not in info:
             raise error.InvalidMessage("action required")
         action = info["action"]
+        next_x = self.best(name)
+        self.players[name].ghost_x = next_x
         if action not in actions.ALL:
             raise error.InvalidMessage("invalid drive action %s" % action)
+        best_action = self.best_for_player(name)
+        if action != best_action:
+            if best_action == "none":
+                print(f"\nplayer {name} should have not moved\n")
+            else:
+                print(f"\nplayer {name} should have turned {best_action}\n")
+        else:
+            print(f"\nplayer {name} chose the best move\n")
         self.players[name].action = action
         self.players[name].response_time = info.get("response_time", 1.0)
 
@@ -107,6 +167,7 @@ class Game(object):
         for i, p in enumerate(top_scorers):
             line = "%d  %10s  row:%d  score:%d" % (i + 1, p.name, p.y, p.score)
             lines.append(line)
+            lines.append(f"success rate for player {p.name}: {round(p.score / p.score_ghost, 3) * 100}%")
         log.info("%s", os.linesep.join(lines))
 
     def loop(self):
