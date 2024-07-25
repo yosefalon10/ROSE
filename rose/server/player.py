@@ -27,9 +27,12 @@ class Player(object):
         self.lane = lane
         self.x = None
         self.y = None
+        self.ghost_x = None
+        self.ghost_y = None
         self.action = None
         self.response_time = None
         self.score = None
+        self.score_ghost = None
         self.reset()
 
     # Game state interface
@@ -40,9 +43,12 @@ class Player(object):
     def reset(self):
         self.x = self.lane * config.cells_per_player + 1  # | |0| | |1 | |
         self.y = config.matrix_height // 3 * 2  # 1/3 of track
+        self.ghost_x = self.x
+        self.ghost_y = self.y
         self.action = actions.NONE
         self.response_time = None
         self.score = 0
+        self.score_ghost = 0
 
     def in_lane(self):
         current_lane = self.x // config.cells_per_player
